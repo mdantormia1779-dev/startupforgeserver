@@ -1,5 +1,6 @@
 const dns = require("node:dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const express = require("express");
 const cors = require("cors");
@@ -323,12 +324,61 @@ async function run() {
       res.send({ success: true });
     });
 
-    app.get("/applications/by-founder/:founderId", async (req, res) => {
-      const { founderId } = req.params;
+    app.get("/applications/by-founder/:ownerId", async (req, res) => {
+      const { ownerId } = req.params;
 
-      const result = await applicationsCollection.find({ founderId }).toArray();
+      const result = await applicationsCollection
+        .aggregate([
+          {
+            $addFields: {
+              opportunityObjId: { $toObjectId: "$opportunityId" },
+            },
+          },
+          {
+            $lookup: {
+              from: "opportunities",
+              localField: "opportunityObjId",
+              foreignField: "_id",
+              as: "job",
+            },
+          },
+          { $unwind: "$job" },
+
+          // ✅ MAIN FILTER
+          {
+            $match: {
+              "job.ownerId": ownerId,
+            },
+          },
+
+          {
+            $project: {
+              _id: 1,
+              applicantName: 1,
+              applicantEmail: 1,
+              portfolio: 1,
+              motivation: 1,
+              status: 1,
+              appliedAt: 1,
+              jobTitle: "$job.roleTitle",
+            },
+          },
+        ])
+        .toArray();
 
       res.send(result);
+    });
+
+    app.patch("/applications/:id", async (req, res) => {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const result = await applicationsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status } },
+      );
+
+      res.send({ success: true, result });
     });
 
     app.get("/applications/check", async (req, res) => {
@@ -367,7 +417,63 @@ async function run() {
       res.send(result);
     });
 
-    
+    // ========================
+    // ADMIN OVERVIEW API
+    // ========================
+
+    // ১. স্ট্যাটাস কার্ডের ডেটা (Total Users, Startups, Opportunities, Revenue)
+    app.get("/admin/stats", async (req, res) => {
+      try {
+        const usersCount = await usersCollection.countDocuments();
+        const startupsCount = await startupsCollection.countDocuments();
+        const oppsCount = await opportunitiesCollection.countDocuments();
+
+        // সব অ্যাপ্লিকেশনের স্ট্যাটাস থেকে রেভিনিউ হিসাব করা (যদি আপনার মডেলে কোনো পেমেন্ট ফিল্ড থাকে)
+        // আপাতত একটি সিম্পল ক্যালকুলেশন দিচ্ছি
+        const revenue = 12500; // আপনার লজিক অনুযায়ী এটি পরিবর্তন করুন
+
+        res.send({
+          users: usersCount,
+          startups: startupsCount,
+          opportunities: oppsCount,
+          revenue: revenue,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Error fetching stats", error });
+      }
+    });
+
+    // ২. চার্টের জন্য রেভিনিউ ডেটা
+    app.get("/admin/revenue-analytics", async (req, res) => {
+      // এটি স্ট্যাটিক ডেটা, প্রয়োজনে MongoDB অ্যাগ্রিগেশন দিয়ে ডাইনামিক করতে পারেন
+      const revenueData = [
+        { name: "Jan", revenue: 4000 },
+        { name: "Feb", revenue: 3000 },
+        { name: "Mar", revenue: 5000 },
+        { name: "Apr", revenue: 4500 },
+        { name: "May", revenue: 6000 },
+        { name: "Jun", revenue: 5500 },
+      ];
+      res.send(revenueData);
+    });
+
+    // 1. ইউজার স্ট্যাটাস আপডেট (Block/Unblock)
+    app.patch("/users/:id", async (req, res) => {
+      const { isBlocked } = req.body;
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: { isBlocked } },
+      );
+      res.send({ success: true, result });
+    });
+
+    // 2. ইউজার ডিলিট
+    app.delete("/users/:id", async (req, res) => {
+      const result = await usersCollection.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.send(result);
+    });
   } catch (error) {
     console.log("MONGO ERROR:", error);
   }
