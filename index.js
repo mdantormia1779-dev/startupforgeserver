@@ -12,14 +12,15 @@ const port = process.env.PORT || 5000;
 
 // middleware
 app.use(express.json());
-app.use(
-  cors({
-    origin: process.env.NEXT_PUBLIC_URL,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true,
-  }),
-);
+// app.use(
+//   cors({
+//     origin: "http://localhost:3000",
+//     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+//     credentials: true,
+//   }),
+// );
 
+app.use(cors({ origin: "*" }));
 // MongoDB URI
 const uri = process.env.DB_URL;
 
@@ -134,13 +135,6 @@ async function run() {
         opportunities: oppsCount,
         revenue,
       });
-    });
-
-    // ========================
-    // TEST ROUTE
-    // ========================
-    app.get("/", (req, res) => {
-      res.send("server is running...");
     });
 
     // ========================
