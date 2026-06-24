@@ -54,6 +54,8 @@ async function run() {
   }
 }
 
+run();
+
 // payment stripe
 app.post("/create-checkout-session", async (req, res) => {
   try {
@@ -588,4 +590,4 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
-run();
+
