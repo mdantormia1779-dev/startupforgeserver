@@ -1,10 +1,11 @@
 const dns = require("node:dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
+const Stripe = require("stripe");
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -16,6 +17,8 @@ app.use(express.json());
 app.use(
   cors({
     origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true,
   }),
 );
 
@@ -42,15 +45,31 @@ async function run() {
     const applicationsCollection = db.collection("applications");
     const paymentsCollection = db.collection("payments");
 
-    // ১. পেমেন্ট ইনটেন্ট তৈরি
-    app.post("/create-payment-intent", async (req, res) => {
-      const { amount } = req.body;
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount * 100, // সেন্টে কনভার্ট
-        currency: "usd",
-        payment_method_types: ["card"],
-      });
-      res.send({ clientSecret: paymentIntent.client_secret });
+    app.post("/create-checkout-session", async (req, res) => {
+      try {
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          mode: "payment",
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: {
+                  name: "Premium Plan",
+                },
+                unit_amount: req.body.amount * 100,
+              },
+              quantity: 1,
+            },
+          ],
+          success_url: "http://localhost:3000/success",
+          cancel_url: "http://localhost:3000/cancel",
+        });
+
+        res.json({ url: session.url }); // 🔥 IMPORTANT CHANGE
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
     });
 
     // ২. পেমেন্ট সেভ করা (আপনার ডাটাবেসে)
