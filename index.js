@@ -497,6 +497,8 @@ async function run() {
       });
     });
 
+    // email diya application dekhano 
+
     app.get("/applications/by-user/:email", async (req, res) => {
       const { email } = req.params;
 
