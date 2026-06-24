@@ -578,14 +578,14 @@ async function run() {
       });
       res.send(result);
     });
-
-    app.get('/',(req,res)=>{
-      res.send("server is running")
-    })
   } catch (error) {
     console.log("MONGO ERROR:", error);
   }
 }
+
+app.get("/", (req, res) => {
+  res.send("Server running 🚀");
+});
 
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
