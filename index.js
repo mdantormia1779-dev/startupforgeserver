@@ -36,7 +36,6 @@ let usersCollection;
 let startupsCollection;
 let opportunitiesCollection;
 let applicationsCollection;
-let applicationsCollection;
 let paymentsCollection;
 
 async function run() {
