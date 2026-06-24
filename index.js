@@ -16,7 +16,7 @@ const port = process.env.PORT || 5000;
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: process.env.NEXT_PUBLIC_URL,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   }),
@@ -62,8 +62,8 @@ async function run() {
               quantity: 1,
             },
           ],
-          success_url: "http://localhost:3000/success",
-          cancel_url: "http://localhost:3000/cancel",
+          success_url: `${process.env.NEXT_PUBLIC_URL}/success`,
+          cancel_url: `${process.env.NEXT_PUBLIC_URL}/cancel`,
         });
 
         res.json({ url: session.url }); // 🔥 IMPORTANT CHANGE
@@ -72,14 +72,47 @@ async function run() {
       }
     });
 
-    // ২. পেমেন্ট সেভ করা (আপনার ডাটাবেসে)
     app.post("/payments", async (req, res) => {
-      const paymentData = req.body;
-      const result = await paymentsCollection.insertOne({
-        ...paymentData,
-        paid_at: new Date(),
-      });
-      res.send({ success: true, insertedId: result.insertedId });
+      try {
+        // ফ্রন্টএন্ড থেকে পাঠানো নাম অনুযায়ী ডিস্ট্রাকচারিং করুন
+        const { userId, email, amount, sessionId, status } = req.body;
+
+        const paymentEntry = {
+          userId: userId, // ফ্রন্টএন্ড থেকে পাঠানো userId
+          user_email: email,
+          amount: amount,
+          transaction_id: sessionId, // sessionId এখানে বসবে
+          payment_status: status,
+          paid_at: new Date(),
+        };
+
+        const result = await paymentsCollection.insertOne(paymentEntry);
+        res.status(201).send({ success: true, insertedId: result.insertedId });
+      } catch (err) {
+        res.status(500).send({ success: false, error: err.message });
+      }
+    });
+
+    // চেক করুন ইউজার প্রিমিয়াম কি না (userId দিয়ে)
+    app.get("/payments/check-premium/:userId", async (req, res) => {
+      const { userId } = req.params;
+      // MongoDB তে transaction_id এর জায়গায় যদি আপনার ইউজার আইডি সেভ করা থাকে তবে সেটি দিন
+      // অথবা যদি আপনি পেমেন্ট কালেকশনে userId সেভ করে থাকেন:
+      const payment = await paymentsCollection.findOne({ userId: userId });
+      res.send({ isPremium: !!payment });
+    });
+
+    app.get("/payments", async (req, res) => {
+      try {
+        // সর্বশেষ পেমেন্টগুলো আগে দেখানোর জন্য sort(-1) ব্যবহার করা হয়েছে
+        const payments = await paymentsCollection
+          .find()
+          .sort({ paid_at: -1 })
+          .toArray();
+        res.send(payments);
+      } catch (err) {
+        res.status(500).send({ error: err.message });
+      }
     });
 
     // ৩. এডমিন স্ট্যাটাস (পেমেন্টসহ)
@@ -476,44 +509,45 @@ async function run() {
       res.send(result);
     });
 
-    // ========================
-    // ADMIN OVERVIEW API
-    // ========================
-
-    // // ১. স্ট্যাটাস কার্ডের ডেটা (Total Users, Startups, Opportunities, Revenue)
-    // app.get("/admin/stats", async (req, res) => {
-    //   try {
-    //     const usersCount = await usersCollection.countDocuments();
-    //     const startupsCount = await startupsCollection.countDocuments();
-    //     const oppsCount = await opportunitiesCollection.countDocuments();
-
-    //     // সব অ্যাপ্লিকেশনের স্ট্যাটাস থেকে রেভিনিউ হিসাব করা (যদি আপনার মডেলে কোনো পেমেন্ট ফিল্ড থাকে)
-    //     // আপাতত একটি সিম্পল ক্যালকুলেশন দিচ্ছি
-    //     const revenue = 12500; // আপনার লজিক অনুযায়ী এটি পরিবর্তন করুন
-
-    //     res.send({
-    //       users: usersCount,
-    //       startups: startupsCount,
-    //       opportunities: oppsCount,
-    //       revenue: revenue,
-    //     });
-    //   } catch (error) {
-    //     res.status(500).send({ message: "Error fetching stats", error });
-    //   }
-    // });
-
-    // ২. চার্টের জন্য রেভিনিউ ডেটা
     app.get("/admin/revenue-analytics", async (req, res) => {
-      // এটি স্ট্যাটিক ডেটা, প্রয়োজনে MongoDB অ্যাগ্রিগেশন দিয়ে ডাইনামিক করতে পারেন
-      const revenueData = [
-        { name: "Jan", revenue: 4000 },
-        { name: "Feb", revenue: 3000 },
-        { name: "Mar", revenue: 5000 },
-        { name: "Apr", revenue: 4500 },
-        { name: "May", revenue: 6000 },
-        { name: "Jun", revenue: 5500 },
-      ];
-      res.send(revenueData);
+      try {
+        const revenueData = await paymentsCollection
+          .aggregate([
+            {
+              // ১. শুধুমাত্র 'paid' স্ট্যাটাস থাকা পেমেন্টগুলো ফিল্টার করুন
+              $match: {
+                payment_status: "paid",
+              },
+            },
+            {
+              // ২. তারিখ থেকে মাস বের করুন
+              $group: {
+                _id: {
+                  $dateToString: { format: "%b", date: "$paid_at" },
+                },
+                totalRevenue: { $sum: "$amount" },
+              },
+            },
+            {
+              // ৩. সাজান যেন মাসের ক্রমে আসে (ঐচ্ছিক)
+              $sort: { _id: 1 },
+            },
+            {
+              // ৪. চার্টের সাথে সামঞ্জস্যপূর্ণ ফরম্যাটে প্রজেক্ট করুন
+              $project: {
+                _id: 0,
+                name: "$_id",
+                revenue: "$totalRevenue",
+              },
+            },
+          ])
+          .toArray();
+
+        // যদি ডাটা না থাকে তবে ডিফল্ট এমটি অ্যারে পাঠান
+        res.send(revenueData.length > 0 ? revenueData : []);
+      } catch (err) {
+        res.status(500).send({ error: err.message });
+      }
     });
 
     // 1. ইউজার স্ট্যাটাস আপডেট (Block/Unblock)
@@ -538,8 +572,7 @@ async function run() {
   }
 }
 
-run();
-
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
+run();
