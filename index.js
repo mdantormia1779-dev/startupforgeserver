@@ -45,6 +45,8 @@ async function run() {
     const applicationsCollection = db.collection("applications");
     const paymentsCollection = db.collection("payments");
 
+
+    // payment stripe 
     app.post("/create-checkout-session", async (req, res) => {
       try {
         const session = await stripe.checkout.sessions.create({
