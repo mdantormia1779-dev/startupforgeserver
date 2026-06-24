@@ -74,6 +74,8 @@ async function run() {
       }
     });
 
+    // post payment data database 
+
     app.post("/payments", async (req, res) => {
       try {
         // ফ্রন্টএন্ড থেকে পাঠানো নাম অনুযায়ী ডিস্ট্রাকচারিং করুন
