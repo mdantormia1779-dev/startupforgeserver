@@ -372,6 +372,8 @@ async function run() {
       }
     });
 
+    // startup er id onujayi dekhano
+
     app.get("/startups/by-owner/:ownerId", async (req, res) => {
       try {
         const { ownerId } = req.params;
@@ -394,6 +396,9 @@ async function run() {
         });
       }
     });
+
+    // application post api 
+
 
     app.post("/applications", async (req, res) => {
       const data = req.body;
