@@ -6,9 +6,7 @@ const cors = require("cors");
 require("dotenv").config();
 const Stripe = require("stripe");
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -580,6 +578,10 @@ async function run() {
       });
       res.send(result);
     });
+
+    app.get('/',(req,res)=>{
+      res.send("server is running")
+    })
   } catch (error) {
     console.log("MONGO ERROR:", error);
   }
