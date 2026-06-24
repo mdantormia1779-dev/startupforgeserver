@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/:path*",
-      "destination": "https://startupforgeserver.vercel.app/:path*"
+      "destination": "https://startupforgeserver.vercel.app/api/:path*"
     }
   ]
 }
