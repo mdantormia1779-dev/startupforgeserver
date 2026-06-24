@@ -426,6 +426,7 @@ async function run() {
       res.send({ success: true });
     });
 
+    // founder er id onujayi dekhaba front end e 
     app.get("/applications/by-founder/:ownerId", async (req, res) => {
       const { ownerId } = req.params;
 
