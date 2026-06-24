@@ -106,6 +106,7 @@ async function run() {
       res.send({ isPremium: !!payment });
     });
 
+    // payment api front end e dekhaba
     app.get("/payments", async (req, res) => {
       try {
         // সর্বশেষ পেমেন্টগুলো আগে দেখানোর জন্য sort(-1) ব্যবহার করা হয়েছে
