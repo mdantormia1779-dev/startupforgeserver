@@ -31,9 +31,9 @@ const client = new MongoClient(uri, {
   },
 });
 
-async function run() {
-  try {
-    await client.connect();
+// async function run() {
+  // try {
+    // await client.connect();
     console.log("✅ Connected to MongoDB");
 
     const db = client.db("startupforge");
@@ -578,12 +578,12 @@ async function run() {
       });
       res.send(result);
     });
-  } catch (error) {
-    console.log("MONGO ERROR:", error);
-  }
-}
+  // } catch (error) {
+    // console.log("MONGO ERROR:", error);
+  // }
+// }
 
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
-run();
+// run();
